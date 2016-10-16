@@ -193,6 +193,7 @@ class Tests(TestCase):
         'C': {'A', 'F', 'E'},
         'D': {'A', 'E'},
         'E': {'D', 'C', 'F'},
+        'F': {'B', 'C', 'E'},
     }
 
     def test_3(self):

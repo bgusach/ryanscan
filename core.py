@@ -3,12 +3,15 @@
 from __future__ import unicode_literals
 
 from collections import namedtuple
+from datetime import datetime
+from datetime import timedelta
 import json
 from pprint import pprint
 
 
 Flight = namedtuple('Flight', ['orig', 'dest', 'date0', 'date1', 'price'])
 Solution = namedtuple('Solution', ['orig', 'dest', 'date0', 'date1', 'flights', 'price'])
+DateInterval = namedtuple('DateInterval', ['start', 'end'])
 
 
 def get_airport_connections():
@@ -36,6 +39,10 @@ def get_connections_from_stations_data(data):
 
 
 def set_assoc(s, val):
+    """
+    Returns a new set containing all elements of `s` plus the element `val`
+
+    """
     res = s.copy()
     res.add(val)
 
@@ -43,6 +50,9 @@ def set_assoc(s, val):
 
 
 def find_paths(origs, targets, network, explored_path=None, forbidden_nodes=None, max_flights=2):
+    if max_flights < 1:
+        raise ValueError('The amount of flights must be at least 1')
+
     if explored_path is None:
         explored_path = []
 
@@ -57,16 +67,21 @@ def find_paths(origs, targets, network, explored_path=None, forbidden_nodes=None
         for dest in destinations & targets:
             yield this_explored_path + [dest]
 
+        if len(this_explored_path) == max_flights:
+            continue
+
         possible_nodes = (destinations - targets) - forbidden_nodes
+        this_forbidden_nodes = set_assoc(forbidden_nodes, orig)
 
-        if len(this_explored_path) < max_flights:
-            forbidden_nodes = set_assoc(forbidden_nodes, orig)
-
-            for path in find_paths(possible_nodes, targets, network, this_explored_path, forbidden_nodes, max_flights):
-                yield path
+        for path in find_paths(possible_nodes, targets, network, this_explored_path, this_forbidden_nodes, max_flights):
+            yield path
 
 
-def scan(origs, dests, date0, date1, get_network=get_airport_connections, find_paths=find_paths):
+def get_prices(paths, dates_to, dates_back=None, min_transfer_time=timedelta(hours=1), max_transfer_time=timedelta(hours=5)):
+    pass
+
+
+def scan(origs, dests, dates_to, dates_back, get_network=get_airport_connections, find_paths=find_paths):
     network = get_network()
 
     for x in find_paths({'BRE'}, {'VLC', 'ALC'}, network):
