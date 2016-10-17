@@ -1,10 +1,13 @@
 # coding: utf-8
 
-from __future__ import unicode_literals
+from __future__ import unicode_literals, division, absolute_import
 
+import requests as r
 from collections import namedtuple
 from datetime import datetime
+from itertools import tee
 from datetime import timedelta
+from math import ceil
 import json
 from pprint import pprint
 
@@ -12,6 +15,7 @@ from pprint import pprint
 Flight = namedtuple('Flight', ['orig', 'dest', 'date0', 'date1', 'price'])
 Solution = namedtuple('Solution', ['orig', 'dest', 'date0', 'date1', 'flights', 'price'])
 DateInterval = namedtuple('DateInterval', ['start', 'end'])
+BackendRequest = namedtuple('BackedRequest', ['orig', 'dest', 'date_to', 'date_back'])
 
 
 def get_airport_connections():
@@ -19,7 +23,7 @@ def get_airport_connections():
 
 
 def get_airports_raw_data():
-    with open('common.json') as f:
+    with open('test_data/common.json') as f:
         return json.load(f)
 
 
@@ -78,14 +82,89 @@ def find_paths(origs, targets, network, explored_path=None, forbidden_nodes=None
 
 
 def get_prices(paths, dates_to, dates_back=None, min_transfer_time=timedelta(hours=1), max_transfer_time=timedelta(hours=5)):
-    pass
+    requests = calculate_needed_requests(paths, dates_to)
+
+    cache = {
+        'to': {},
+        'from': {},
+    }
+
+    for path in paths:
+            if segment not in cache['to']:
+                cache['to'][segment] = get_flights_for_itinerary(segment[0], segment[1], dates_to[0], dates_to[1])
+
+
+def calculate_needed_requests(paths, dates_to, dates_back=None):
+    start, end = dates_to
+    week_intervals_to_query = int(ceil((end - start).days / 7)) or 1  # At least one we need
+    dates_to_query = [start + timedelta(days=7 * x) for x in range(week_intervals_to_query)]
+
+    return {
+        BackendRequest(segment[0], segment[1], date, None)
+        for path in paths
+        for segment in get_segments_from_path(path)
+        for date in dates_to_query
+    }
+
+
+def get_flights_for_itinerary(orig, dest, start_date, end_date):
+    this_date = start_date
+
+    while this_date <= end_date:  # The equal ensures that if start == end, we still query
+        query = {
+            'ADT': 1,
+            'CHD': 0,
+            'DateOut': this_date.strftime(RAR_DATE_FORMAT),
+            'Destination': dest,
+            'FlexDaysOut': 6,
+            'INF': 0,
+            'Origin': orig,
+            'RoundTrip': 'false',
+            'TEEN': 0,
+        }
+        print(this_date)
+        print(query)
+
+        this_date += timedelta(days=7)
+
+    return
+    return r.get('https://desktopapps.ryanair.com/en-ie/availability', params=query).json()
+
+    import json
+    with open('lol.json') as f:
+        res = json.load(f)
+
+    return res
+
+
+def get_dates_to_query(start_date, end_date):
+    # We can query only one week at a time
+    week = timedelta(days=7)
+    weeks2query = (end_date - start_date).days // week + 1
+
+    return
+
+
+RAR_DATE_FORMAT = '%Y-%m-%d'
+
+
+def get_segments_from_path(path):
+    """
+    Given a list of airports, it returns a list of each segment.
+    From ['BRE', 'VLC', 'HAM'] --> [('BRE', 'VLC'), ('VLC', 'HAM')]
+
+    """
+    path1, path2 = tee(path)
+    next(path2)
+
+    return [tuple(p) for p in zip(path1, path2)]
 
 
 def scan(origs, dests, dates_to, dates_back, get_network=get_airport_connections, find_paths=find_paths):
     network = get_network()
 
-    for x in find_paths({'BRE'}, {'VLC', 'ALC'}, network):
-        print(x)
+    paths = find_paths({'BRE'}, {'ALC'}, network)
+    prices = get_prices(paths, (datetime(2016, 11, 10), datetime(2016, 11, 20)))
 
 
 if __name__ == '__main__':

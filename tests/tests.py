@@ -2,9 +2,12 @@
 
 from __future__ import unicode_literals, absolute_import, division, print_function
 
-
+from datetime import datetime
 from unittest import TestCase
+
 import core
+from core import DateInterval
+from core import BackendRequest
 
 
 class Tests(TestCase):
@@ -216,3 +219,38 @@ class Tests(TestCase):
 
         res = set(map(tuple, core.find_paths({'A'}, {'F'}, self.network, max_flights=2)))
         self.assertEqual(expected, res)
+
+    def test_5(self):
+        expected = [(1, 2), (2, 3), (3, 4)]
+        res = core.get_segments_from_path([1, 2, 3, 4])
+
+        self.assertEqual(expected, res)
+
+    def test_6(self):
+        paths = [['A', 'B', 'C'], ['D', 'E']]
+        dates_to = core.DateInterval(datetime(2016, 10, 10), datetime(2016, 10, 20))
+        result = core.calculate_needed_requests(paths, dates_to)
+
+        self.assertEqual({
+            BackendRequest('A', 'B', datetime(2016, 10, 10), None),
+            BackendRequest('A', 'B', datetime(2016, 10, 17), None),
+            BackendRequest('B', 'C', datetime(2016, 10, 10), None),
+            BackendRequest('B', 'C', datetime(2016, 10, 17), None),
+            BackendRequest('D', 'E', datetime(2016, 10, 10), None),
+            BackendRequest('D', 'E', datetime(2016, 10, 17), None),
+        }, result)
+
+    def test_7(self):
+        """
+        When start and end date are the same, we still query once
+
+        """
+        paths = [['A', 'B', 'C'], ['D', 'E']]
+        dates_to = core.DateInterval(datetime(2016, 10, 10), datetime(2016, 10, 10))
+        result = core.calculate_needed_requests(paths, dates_to)
+
+        self.assertEqual({
+            BackendRequest('A', 'B', datetime(2016, 10, 10), None),
+            BackendRequest('B', 'C', datetime(2016, 10, 10), None),
+            BackendRequest('D', 'E', datetime(2016, 10, 10), None),
+        }, result)
