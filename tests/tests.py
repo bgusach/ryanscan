@@ -254,3 +254,22 @@ class Tests(TestCase):
             BackendRequest('B', 'C', datetime(2016, 10, 10), None),
             BackendRequest('D', 'E', datetime(2016, 10, 10), None),
         }, result)
+
+    def test_8(self):
+        """
+        Query calculator works fine over longer time periods
+
+        """
+        paths = [['A', 'B']]
+        dates_to = core.DateInterval(datetime(2016, 10, 1), datetime(2016, 11, 15))
+        result = core.calculate_needed_requests(paths, dates_to)
+
+        self.assertEqual({
+            BackendRequest('A', 'B', datetime(2016, 10, 1), None),
+            BackendRequest('A', 'B', datetime(2016, 10, 8), None),
+            BackendRequest('A', 'B', datetime(2016, 10, 15), None),
+            BackendRequest('A', 'B', datetime(2016, 10, 22), None),
+            BackendRequest('A', 'B', datetime(2016, 10, 29), None),
+            BackendRequest('A', 'B', datetime(2016, 11, 5), None),
+            BackendRequest('A', 'B', datetime(2016, 11, 12), None),
+        }, result)
