@@ -53,32 +53,56 @@ def set_assoc(s, val):
     return res
 
 
-def find_paths(origs, targets, network, explored_path=None, forbidden_nodes=None, max_flights=2):
-    if max_flights < 1:
-        raise ValueError('The amount of flights must be at least 1')
+def find_paths(origs, targets, network, max_flights=2):
+    """
+    :param origs: list of iata codes of aiports to start from
+    :param targets: list of iata codes of destination airports
+    :param dict network: graph of airports and routes
+    :param int max_flights: desired max amount of flights
+    """
+    targets = set(targets)
+    visited_nodes = set(origs)
 
+    for orig in origs:
+        for path in _find_path_for_origin(orig, targets, network, visited_nodes=visited_nodes, max_flights=max_flights):
+            yield path
+
+
+def _find_path_for_origin(orig, targets, network, explored_path=None, visited_nodes=None, max_flights=2):
+    """
+    :param str orig: origin airport
+    :param set of str targets: possible destination airports
+    :param dict network:
+    :param list explored_path: list of edges already explored
+    :param set of str visited_nodes: airports already visited (or that does not make any sense to fly to)
+    :param int max_flights: max amount of flights
+
+    """
     if explored_path is None:
         explored_path = []
 
-    if forbidden_nodes is None:
-        forbidden_nodes = set()
+    if visited_nodes is None:
+        visited_nodes = set()
 
-    for orig in origs:
-        this_explored_path = explored_path + [orig]
-
+    if len(explored_path) < max_flights:
         destinations = network[orig]
 
         for dest in destinations & targets:
-            yield this_explored_path + [dest]
+            yield explored_path + [(orig, dest)]
 
-        if len(this_explored_path) == max_flights:
-            continue
+        possible_intermediate_nodes = (destinations - targets) - visited_nodes
+        this_visited_nodes = set_assoc(visited_nodes, orig)
 
-        possible_nodes = (destinations - targets) - forbidden_nodes
-        this_forbidden_nodes = set_assoc(forbidden_nodes, orig)
-
-        for path in find_paths(possible_nodes, targets, network, this_explored_path, this_forbidden_nodes, max_flights):
-            yield path
+        for node in possible_intermediate_nodes:
+            for path in _find_path_for_origin(
+                node,
+                targets,
+                network,
+                explored_path + [(orig, node)],
+                this_visited_nodes,
+                max_flights
+            ):
+                yield path
 
 
 def get_prices(paths, dates_to, dates_back=None, min_transfer_time=timedelta(hours=1), max_transfer_time=timedelta(hours=5)):
@@ -98,7 +122,7 @@ def get_prices(paths, dates_to, dates_back=None, min_transfer_time=timedelta(hou
     # extract into own recursive function
     for path in paths:
         # a > b > c
-        for segment in get_segments_from_path(path):
+        for segment in path:
             # a > b
             for flight in segment2flights[segment]:
                 pass
@@ -127,7 +151,7 @@ def calculate_needed_requests(paths, dates_to, dates_back=None):
     return {
         BackendRequest(segment[0], segment[1], date, None)
         for path in paths
-        for segment in get_segments_from_path(path)
+        for segment in path
         for date in dates_to_query
     }
 
@@ -167,18 +191,6 @@ def parse_full_date(date_str):
     return datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S.%f')
 
 RAR_DATE_FORMAT = '%Y-%m-%d'
-
-
-def get_segments_from_path(path):
-    """
-    Given a list of airports, it returns a list of each segment.
-    From ['BRE', 'VLC', 'HAM'] --> [('BRE', 'VLC'), ('VLC', 'HAM')]
-
-    """
-    path1, path2 = tee(path)
-    next(path2)
-
-    return [tuple(p) for p in zip(path1, path2)]
 
 
 def scan(origs, dests, dates_to, dates_back, get_network=get_airport_connections, find_paths=find_paths):

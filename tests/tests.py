@@ -200,34 +200,46 @@ class Tests(TestCase):
     }
 
     def test_3(self):
+        """
+        If enough depth is allowed, all the possible paths are discovered
+
+        """
+        res = set(map(tuple, core.find_paths(['A'], ['F'], self.network, max_flights=1000000)))
         expected = {
-            ('A', 'B', 'F'),
-            ('A', 'C', 'F'),
-            ('A', 'C', 'E', 'F'),
-            ('A', 'D', 'E', 'F'),
-            ('A', 'D', 'E', 'C', 'F'),
+            (('A', 'B'), ('B', 'F')),
+            (('A', 'C'), ('C', 'F')),
+            (('A', 'C'), ('C', 'E'), ('E', 'F')),
+            (('A', 'D'), ('D', 'E'), ('E', 'F')),
+            (('A', 'D'), ('D', 'E'), ('E', 'C'), ('C', 'F')),
         }
 
-        res = set(map(tuple, core.find_paths({'A'}, {'F'}, self.network, max_flights=1000000)))
         self.assertEqual(expected, res)
 
-    def test_4(self):
+    def test_3b(self):
         expected = {
-            ('A', 'B', 'F'),
-            ('A', 'C', 'F'),
+            (('A', 'B'), ('B', 'F')),
+            (('A', 'C'), ('C', 'F')),
         }
 
-        res = set(map(tuple, core.find_paths({'A'}, {'F'}, self.network, max_flights=2)))
+        res = set(map(tuple, core.find_paths(['A'], ['F'], self.network, max_flights=2)))
         self.assertEqual(expected, res)
 
-    def test_5(self):
-        expected = [(1, 2), (2, 3), (3, 4)]
-        res = core.get_segments_from_path([1, 2, 3, 4])
+    def test_3c(self):
+        """
+        From multiple starts to multiple destinations
 
+        """
+        res = set(map(tuple, core.find_paths(['A', 'B'], ['F', 'E'], self.network, max_flights=1000000)))
+        expected = {
+            (('B', 'F'), ),
+            (('A', 'C'), ('C', 'F')),
+            (('A', 'C'), ('C', 'E')),
+            (('A', 'D'), ('D', 'E')),
+        }
         self.assertEqual(expected, res)
 
     def test_6(self):
-        paths = [['A', 'B', 'C'], ['D', 'E']]
+        paths = [[('A', 'B'), ('B', 'C')], [('D', 'E')]]
         dates_to = core.DateInterval(datetime(2016, 10, 10), datetime(2016, 10, 20))
         result = core.calculate_needed_requests(paths, dates_to)
 
@@ -245,7 +257,7 @@ class Tests(TestCase):
         When start and end date are the same, we still query once
 
         """
-        paths = [['A', 'B', 'C'], ['D', 'E']]
+        paths = [[('A', 'B'), ('B', 'C')], [('D', 'E')]]
         dates_to = core.DateInterval(datetime(2016, 10, 10), datetime(2016, 10, 10))
         result = core.calculate_needed_requests(paths, dates_to)
 
@@ -260,7 +272,7 @@ class Tests(TestCase):
         Query calculator works fine over longer time periods
 
         """
-        paths = [['A', 'B']]
+        paths = [[('A', 'B')]]
         dates_to = core.DateInterval(datetime(2016, 10, 1), datetime(2016, 11, 15))
         result = core.calculate_needed_requests(paths, dates_to)
 
