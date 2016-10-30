@@ -9,12 +9,13 @@ from unittest import TestCase
 import core
 from core import DateInterval
 from core import DateConstraint
+from core import Solution
 from core import BackendRequest
 from core import Flight as F
 from core import Edge as E
 
 
-def make_flight(orig='A', dest='B', date0=dt(2016, 1, 1, 10, 30), date1=dt(2016, 1, 1, 13, 30), price=100, flight_number='abc'):
+def make_flight(orig='A', dest='B', date_out=dt(2016, 1, 1, 10, 30), date_in=dt(2016, 1, 1, 13, 30), price=100, flight_number='abc'):
     return F(**locals())
 
 
@@ -320,7 +321,7 @@ class Tests(TestCase):
         constraint = DateConstraint(
             earliest_out=dt(2016, 1, 1),
             latest_out=dt(2016, 1, 1, 23, 59, 59),
-            latest_in=flight.date1 - delta(hours=1),  # Failing constraint
+            latest_in=flight.date_in - delta(hours=1),  # Failing constraint
             min_between_flights=delta(hours=1),
             max_between_flights=delta(hours=5),
         )
@@ -336,7 +337,7 @@ class Tests(TestCase):
 
         constraint = DateConstraint(
             earliest_out=dt(2016, 1, 1),
-            latest_out=flight.date0 - delta(hours=1),  # Failing condition
+            latest_out=flight.date_out - delta(hours=1),  # Failing condition
             latest_in=dt(2016, 1, 1, 23, 59, 59),
             min_between_flights=delta(hours=1),
             max_between_flights=delta(hours=5),
@@ -352,7 +353,7 @@ class Tests(TestCase):
         flight = make_flight()
 
         constraint = DateConstraint(
-            earliest_out=flight.date0 + delta(hours=1),
+            earliest_out=flight.date_out + delta(hours=1),
             latest_out=dt(2016, 1, 1, 23, 59, 59),
             latest_in=dt(2016, 1, 1, 23, 59, 59),
             min_between_flights=delta(hours=1),
@@ -367,7 +368,7 @@ class Tests(TestCase):
 
         """
         f1 = make_flight()
-        f2 = make_flight(orig=f1.dest, dest='C', date0=f1.date1 + delta(hours=1), date1=f1.date1 + delta(hours=3))
+        f2 = make_flight(orig=f1.dest, dest='C', date_out=f1.date_in + delta(hours=1), date_in=f1.date_in + delta(hours=3))
 
         constraint = DateConstraint(
             earliest_out=dt(2016, 1, 1),
@@ -385,7 +386,7 @@ class Tests(TestCase):
 
         """
         f1 = make_flight()
-        f2 = make_flight(orig=f1.dest, dest='C', date0=f1.date1, date1=f1.date1 + delta(hours=3))
+        f2 = make_flight(orig=f1.dest, dest='C', date_out=f1.date_in, date_in=f1.date_in + delta(hours=3))
 
         constraint = DateConstraint(
             earliest_out=dt(2016, 1, 1),
@@ -403,7 +404,7 @@ class Tests(TestCase):
 
         """
         f1 = make_flight()
-        f2 = make_flight(orig=f1.dest, dest='C', date0=f1.date1 + delta(hours=10), date1=f1.date1 + delta(hours=13))
+        f2 = make_flight(orig=f1.dest, dest='C', date_out=f1.date_in + delta(hours=10), date_in=f1.date_in + delta(hours=13))
 
         constraint = DateConstraint(
             earliest_out=dt(2016, 1, 1),
@@ -414,3 +415,78 @@ class Tests(TestCase):
         )
 
         self.assertFalse(core.are_flights_compatible([f1, f2], constraint))
+
+    def test_16(self):
+        """
+        get_path_solutions: generated solutions contain the right flights
+
+        """
+        path = [E('A', 'B'), E('B', 'C'), E('C', 'D')]
+
+        f0, f1, f2, f3, f4, f5 = [make_flight() for _ in range(6)]
+
+        edge2flights = {
+            E('A', 'B'): [f0, f1],
+            E('B', 'C'): [f2, f3],
+            E('C', 'D'): [f4, f5],
+        }
+
+        solutions = core.get_path_solutions(
+            path=path,
+            edge2flights=edge2flights,
+
+            # Just mock the compatibility test
+            date_constraint=None,
+            are_flights_compatible=return_true,
+        )
+
+        # In this test we don't care too much about anything but the generated routes
+        calculated_flights = [s.flights for s in solutions]
+        expected = [
+            [f0, f2, f4],
+            [f0, f2, f5],
+            [f0, f3, f4],
+            [f0, f3, f5],
+            [f1, f2, f4],
+            [f1, f2, f5],
+            [f1, f3, f4],
+            [f1, f3, f5],
+        ]
+
+        self.assertEqual(calculated_flights, expected)
+
+    def test_17(self):
+        """
+        get_path_solutions: generated solutions contain the right values from its flights
+
+        """
+        path = [E('A', 'B'), E('B', 'C')]
+
+        f0 = make_flight('A', 'B')
+        f1 = make_flight('B', 'C', date_in=f0.date_in + delta(hours=5), price=66)
+        f2 = make_flight('B', 'C', date_in=f0.date_in + delta(hours=10), price=101)
+
+        edge2flights = {
+            E('A', 'B'): [f0],
+            E('B', 'C'): [f1, f2],
+        }
+
+        result = core.get_path_solutions(
+            path=path,
+            edge2flights=edge2flights,
+
+            # Just mock the compatibility test
+            date_constraint=None,
+            are_flights_compatible=return_true,
+        )
+
+        expected = [
+            Solution(orig='A', dest='C', date_out=f0.date_out, date_in=f1.date_in, flights=[f0, f1], price=f0.price + f1.price),
+            Solution(orig='A', dest='C', date_out=f0.date_out, date_in=f2.date_in, flights=[f0, f2], price=f0.price + f2.price),
+        ]
+
+        self.assertEqual(result, expected)
+
+
+def return_true(*args, **kwargs):
+    return True

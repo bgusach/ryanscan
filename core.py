@@ -16,7 +16,7 @@ import requests as r
 from tools import group_by
 
 
-Flight = namedtuple('Flight', ['orig', 'dest', 'date0', 'date1', 'price', 'flight_number'])
+Flight = namedtuple('Flight', ['orig', 'dest', 'date_out', 'date_in', 'price', 'flight_number'])
 DateInterval = namedtuple('DateInterval', ['start', 'end'])
 BackendRequest = namedtuple('BackedRequest', ['orig', 'dest', 'date_to', 'date_back'])
 Edge = namedtuple('Edge', ['orig', 'dest'])
@@ -35,9 +35,9 @@ def make_solution(flights):
     return Solution(
         orig=first.orig,
         dest=last.dest,
-        flights=flights,
-        date_out=first.date0,
-        date_in=last.date1,
+        flights=list(flights),
+        date_out=first.date_out,
+        date_in=last.date_in,
         price=sum(f.price for f in flights),
     )
 
@@ -167,20 +167,12 @@ def get_prices(
             yield solution
 
 
-def get_path_solutions(path, edge2flights, date_constraint):
-    all_posible_solutions = itertools.product(map(edge2flights, path))
-
-    return [
-        make_solution(s)
-        for s in all_posible_solutions
-        if s
-        and are_flights_compatible(s, date_constraint)
-    ]
-
-
 def are_flights_compatible(flights, date_constraint):
     """
+    Return whether the collection of flights is consistent with itself, and with the date constraints
+
     :type flights: list of Flight
+    :type date_constraint: DateConstraint
     :rtype: bool
 
     """
@@ -189,18 +181,29 @@ def are_flights_compatible(flights, date_constraint):
 
     this_flight, rest = flights[0], flights[1:]
 
-    if this_flight.date1 > date_constraint.latest_in:
+    if this_flight.date_in > date_constraint.latest_in:
         return False
 
-    if this_flight.date0 < date_constraint.earliest_out or this_flight.date0 > date_constraint.latest_out:
+    if this_flight.date_out < date_constraint.earliest_out or this_flight.date_out > date_constraint.latest_out:
         return False
 
     date_constraint = date_constraint._replace(
-        earliest_out=this_flight.date1 + date_constraint.min_between_flights,
-        latest_out=this_flight.date1 + date_constraint.max_between_flights,
+        earliest_out=this_flight.date_in + date_constraint.min_between_flights,
+        latest_out=this_flight.date_in + date_constraint.max_between_flights,
     )
 
     return are_flights_compatible(rest, date_constraint)
+
+
+def get_path_solutions(path, edge2flights, date_constraint, are_flights_compatible=are_flights_compatible):
+    all_posible_solutions = itertools.product(*[edge2flights[edge] for edge in path])
+
+    return [
+        make_solution(s)
+        for s in all_posible_solutions
+        if s
+        and are_flights_compatible(s, date_constraint)
+    ]
 
 
 def calculate_needed_requests(paths, dates_to, dates_back=None):
@@ -237,8 +240,8 @@ def execute_request(request):
         Flight(
             orig=trip['origin'],
             dest=trip['destination'],
-            date0=parse_full_date(flight['time'][0]),
-            date1=parse_full_date(flight['time'][1]),
+            date_out=parse_full_date(flight['time'][0]),
+            date_in=parse_full_date(flight['time'][1]),
             price=flight['regularFare']['fares'][0]['amount'],
             flight_number=flight['flightNumber'],
         )
