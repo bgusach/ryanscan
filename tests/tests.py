@@ -6,17 +6,12 @@ from datetime import datetime as dt
 from datetime import timedelta as delta
 from unittest import TestCase
 
-import core
-from core import DateInterval
-from core import DateConstraint
-from core import Solution
-from core import BackendRequest
-from core import Flight as F
-from core import Edge as E
-
-
-def make_flight(orig='A', dest='B', date_out=dt(2016, 1, 1, 10, 30), date_in=dt(2016, 1, 1, 13, 30), price=100, flight_number='abc'):
-    return F(**locals())
+from ryanscanner import core
+from ryanscanner.core import DateConstraint
+from ryanscanner.core import Solution
+from ryanscanner.core import BackendRequest
+from ryanscanner.core import Flight as F
+from ryanscanner.core import Edge as E
 
 
 class Tests(TestCase):
@@ -490,3 +485,7 @@ class Tests(TestCase):
 
 def return_true(*args, **kwargs):
     return True
+
+
+def make_flight(orig='A', dest='B', date_out=dt(2016, 1, 1, 10, 30), date_in=dt(2016, 1, 1, 13, 30), price=100, flight_number='abc'):
+    return F(**locals())

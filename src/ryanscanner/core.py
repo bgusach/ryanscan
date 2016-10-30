@@ -12,8 +12,7 @@ import json
 from pprint import pprint
 import requests as r
 
-# TODO [bgusach 29.10.2016]: make this import clean
-from tools import group_by
+from .tools import group_by
 
 
 Flight = namedtuple('Flight', ['orig', 'dest', 'date_out', 'date_in', 'price', 'flight_number'])
@@ -234,6 +233,7 @@ def execute_request(request):
         'TEEN': 0,
     }
 
+    # FIXME [bgusach 30.10.2016]: add support for more countries/currencies
     res = r.get('https://desktopapps.ryanair.com/en-ie/availability', params=query).json()
 
     return [
@@ -254,6 +254,7 @@ def execute_request(request):
 def parse_full_date(date_str):
     return datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S.%f')
 
+
 RAR_DATE_FORMAT = '%Y-%m-%d'
 
 
@@ -263,6 +264,3 @@ def scan(origs, dests, dates_to, dates_back, get_network=get_airport_connections
     paths = find_paths(['BRE'], ['ALC'], network, max_flights=1)
     prices = get_prices(paths, DateInterval(datetime(2016, 11, 10), datetime(2016, 11, 15)))
 
-
-if __name__ == '__main__':
-    scan(0, 0, 0, 0)
