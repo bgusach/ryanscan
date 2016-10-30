@@ -1,21 +1,45 @@
 # coding: utf-8
 
-from __future__ import unicode_literals, division, absolute_import
+from __future__ import unicode_literals, division, absolute_import, print_function
 
-import requests as r
+import itertools
 from collections import namedtuple
 from datetime import datetime
-from itertools import tee
+from datetime import time
 from datetime import timedelta
 from math import ceil
 import json
 from pprint import pprint
+import requests as r
+
+# TODO [bgusach 29.10.2016]: make this import clean
+from tools import group_by
 
 
 Flight = namedtuple('Flight', ['orig', 'dest', 'date0', 'date1', 'price', 'flight_number'])
-Solution = namedtuple('Solution', ['orig', 'dest', 'date0', 'date1', 'flights', 'price'])
 DateInterval = namedtuple('DateInterval', ['start', 'end'])
 BackendRequest = namedtuple('BackedRequest', ['orig', 'dest', 'date_to', 'date_back'])
+Edge = namedtuple('Edge', ['orig', 'dest'])
+Solution = namedtuple('Solution', ['orig', 'dest', 'date_out', 'date_in', 'flights', 'price'])
+DateConstraint = namedtuple(
+    'DateConstraint',
+    ['earliest_out', 'latest_in', 'latest_out', 'min_between_flights', 'max_between_flights']
+)
+
+
+def make_solution(flights):
+    # TODO [bgusach 29.10.2016]: handle no flights
+    first = flights[0]
+    last = flights[-1]
+
+    return Solution(
+        orig=first.orig,
+        dest=last.dest,
+        flights=flights,
+        date_out=first.date0,
+        date_in=last.date1,
+        price=sum(f.price for f in flights),
+    )
 
 
 def get_airport_connections():
@@ -59,6 +83,7 @@ def find_paths(origs, targets, network, max_flights=2):
     :param targets: list of iata codes of destination airports
     :param dict network: graph of airports and routes
     :param int max_flights: desired max amount of flights
+
     """
     targets = set(targets)
     visited_nodes = set(origs)
@@ -88,7 +113,7 @@ def _find_path_for_origin(orig, targets, network, explored_path=None, visited_no
         destinations = network[orig]
 
         for dest in destinations & targets:
-            yield explored_path + [(orig, dest)]
+            yield explored_path + [Edge(orig, dest)]
 
         possible_intermediate_nodes = (destinations - targets) - visited_nodes
         this_visited_nodes = set_assoc(visited_nodes, orig)
@@ -98,48 +123,84 @@ def _find_path_for_origin(orig, targets, network, explored_path=None, visited_no
                 node,
                 targets,
                 network,
-                explored_path + [(orig, node)],
+                explored_path + [Edge(orig, node)],
                 this_visited_nodes,
                 max_flights
             ):
                 yield path
 
+std_min_between_flights = timedelta(hours=1)
+std_max_between_flights = timedelta(hours=5)
 
-def get_prices(paths, dates_to, dates_back=None, min_transfer_time=timedelta(hours=1), max_transfer_time=timedelta(hours=5)):
 
+def get_prices(
+    paths,
+    dates_to,
+    dates_back=None,
+    min_between_flights=std_min_between_flights,
+    max_between_flights=std_max_between_flights,
+):
     needed_requests = calculate_needed_requests(paths, dates_to, dates_back)
 
-    segment2flights = group_by(
+    edge2flights = group_by(
         lambda x: (x.orig, x.dest),
         (flight for req in needed_requests for flight in execute_request(req)),
     )
 
-    pprint(segment2flights, indent=2)
-    return
+    pprint(edge2flights, indent=2)
 
-    solutions = []
+    earliest_out = datetime.combine(dates_to.start, time(0, 0, 0))
+    latest_in = datetime.combine(dates_to.end, time(23, 59, 59))
 
-    # extract into own recursive function
+    date_constraint = DateConstraint(
+        earliest_out=earliest_out,
+        latest_out=latest_in,
+        latest_in=latest_in,
+    )
+
     for path in paths:
-        # a > b > c
-        for segment in path:
-            # a > b
-            for flight in segment2flights[segment]:
-                pass
+        for solution in get_path_solutions(
+            path,
+            edge2flights,
+            date_constraint=date_constraint,
+        ):
+            yield solution
 
 
-def group_by(key, iterable):
-    res = {}
+def get_path_solutions(path, edge2flights, date_constraint):
+    all_posible_solutions = itertools.product(map(edge2flights, path))
 
-    for val in iterable:
-        k = key(val)
+    return [
+        make_solution(s)
+        for s in all_posible_solutions
+        if s
+        and are_flights_compatible(s, date_constraint)
+    ]
 
-        if k not in res:
-            res[k] = []
 
-        res[k].append(val)
+def are_flights_compatible(flights, date_constraint):
+    """
+    :type flights: list of Flight
+    :rtype: bool
 
-    return res
+    """
+    if not flights:
+        return True
+
+    this_flight, rest = flights[0], flights[1:]
+
+    if this_flight.date1 > date_constraint.latest_in:
+        return False
+
+    if this_flight.date0 < date_constraint.earliest_out or this_flight.date0 > date_constraint.latest_out:
+        return False
+
+    date_constraint = date_constraint._replace(
+        earliest_out=this_flight.date1 + date_constraint.min_between_flights,
+        latest_out=this_flight.date1 + date_constraint.max_between_flights,
+    )
+
+    return are_flights_compatible(rest, date_constraint)
 
 
 def calculate_needed_requests(paths, dates_to, dates_back=None):
@@ -149,9 +210,9 @@ def calculate_needed_requests(paths, dates_to, dates_back=None):
     dates_to_query = [start + timedelta(days=7 * x) for x in range(week_intervals_to_query)]
 
     return {
-        BackendRequest(segment[0], segment[1], date, None)
+        BackendRequest(edge.orig, edge.dest, date, None)
         for path in paths
-        for segment in path
+        for edge in path
         for date in dates_to_query
     }
 
@@ -196,8 +257,8 @@ RAR_DATE_FORMAT = '%Y-%m-%d'
 def scan(origs, dests, dates_to, dates_back, get_network=get_airport_connections, find_paths=find_paths):
     network = get_network()
 
-    paths = find_paths({'BRE'}, {'ALC'}, network, max_flights=1)
-    prices = get_prices(paths, (datetime(2016, 11, 10), datetime(2016, 11, 15)))
+    paths = find_paths(['BRE'], ['ALC'], network, max_flights=1)
+    prices = get_prices(paths, DateInterval(datetime(2016, 11, 10), datetime(2016, 11, 15)))
 
 
 if __name__ == '__main__':

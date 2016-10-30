@@ -2,12 +2,20 @@
 
 from __future__ import unicode_literals, absolute_import, division, print_function
 
-from datetime import datetime
+from datetime import datetime as dt
+from datetime import timedelta as delta
 from unittest import TestCase
 
 import core
 from core import DateInterval
+from core import DateConstraint
 from core import BackendRequest
+from core import Flight as F
+from core import Edge as E
+
+
+def make_flight(orig='A', dest='B', date0=dt(2016, 1, 1, 10, 30), date1=dt(2016, 1, 1, 13, 30), price=100, flight_number='abc'):
+    return F(**locals())
 
 
 class Tests(TestCase):
@@ -239,17 +247,17 @@ class Tests(TestCase):
         self.assertEqual(expected, res)
 
     def test_6(self):
-        paths = [[('A', 'B'), ('B', 'C')], [('D', 'E')]]
-        dates_to = core.DateInterval(datetime(2016, 10, 10), datetime(2016, 10, 20))
+        paths = [[E('A', 'B'), E('B', 'C')], [E('D', 'E')]]
+        dates_to = core.DateInterval(dt(2016, 10, 10), dt(2016, 10, 20))
         result = core.calculate_needed_requests(paths, dates_to)
 
         self.assertEqual({
-            BackendRequest('A', 'B', datetime(2016, 10, 10), None),
-            BackendRequest('A', 'B', datetime(2016, 10, 17), None),
-            BackendRequest('B', 'C', datetime(2016, 10, 10), None),
-            BackendRequest('B', 'C', datetime(2016, 10, 17), None),
-            BackendRequest('D', 'E', datetime(2016, 10, 10), None),
-            BackendRequest('D', 'E', datetime(2016, 10, 17), None),
+            BackendRequest('A', 'B', dt(2016, 10, 10), None),
+            BackendRequest('A', 'B', dt(2016, 10, 17), None),
+            BackendRequest('B', 'C', dt(2016, 10, 10), None),
+            BackendRequest('B', 'C', dt(2016, 10, 17), None),
+            BackendRequest('D', 'E', dt(2016, 10, 10), None),
+            BackendRequest('D', 'E', dt(2016, 10, 17), None),
         }, result)
 
     def test_7(self):
@@ -257,14 +265,14 @@ class Tests(TestCase):
         When start and end date are the same, we still query once
 
         """
-        paths = [[('A', 'B'), ('B', 'C')], [('D', 'E')]]
-        dates_to = core.DateInterval(datetime(2016, 10, 10), datetime(2016, 10, 10))
+        paths = [[E('A', 'B'), E('B', 'C')], [E('D', 'E')]]
+        dates_to = core.DateInterval(dt(2016, 10, 10), dt(2016, 10, 10))
         result = core.calculate_needed_requests(paths, dates_to)
 
         self.assertEqual({
-            BackendRequest('A', 'B', datetime(2016, 10, 10), None),
-            BackendRequest('B', 'C', datetime(2016, 10, 10), None),
-            BackendRequest('D', 'E', datetime(2016, 10, 10), None),
+            BackendRequest('A', 'B', dt(2016, 10, 10), None),
+            BackendRequest('B', 'C', dt(2016, 10, 10), None),
+            BackendRequest('D', 'E', dt(2016, 10, 10), None),
         }, result)
 
     def test_8(self):
@@ -272,16 +280,137 @@ class Tests(TestCase):
         Query calculator works fine over longer time periods
 
         """
-        paths = [[('A', 'B')]]
-        dates_to = core.DateInterval(datetime(2016, 10, 1), datetime(2016, 11, 15))
+        paths = [[E('A', 'B')]]
+        dates_to = core.DateInterval(dt(2016, 10, 1), dt(2016, 11, 15))
         result = core.calculate_needed_requests(paths, dates_to)
 
         self.assertEqual({
-            BackendRequest('A', 'B', datetime(2016, 10, 1), None),
-            BackendRequest('A', 'B', datetime(2016, 10, 8), None),
-            BackendRequest('A', 'B', datetime(2016, 10, 15), None),
-            BackendRequest('A', 'B', datetime(2016, 10, 22), None),
-            BackendRequest('A', 'B', datetime(2016, 10, 29), None),
-            BackendRequest('A', 'B', datetime(2016, 11, 5), None),
-            BackendRequest('A', 'B', datetime(2016, 11, 12), None),
+            BackendRequest('A', 'B', dt(2016, 10, 1), None),
+            BackendRequest('A', 'B', dt(2016, 10, 8), None),
+            BackendRequest('A', 'B', dt(2016, 10, 15), None),
+            BackendRequest('A', 'B', dt(2016, 10, 22), None),
+            BackendRequest('A', 'B', dt(2016, 10, 29), None),
+            BackendRequest('A', 'B', dt(2016, 11, 5), None),
+            BackendRequest('A', 'B', dt(2016, 11, 12), None),
         }, result)
+
+    def test_9(self):
+        """
+        are_flights_compatible: positive single flight
+
+        """
+        flights = [make_flight()]
+        constraint = DateConstraint(
+            earliest_out=dt(2016, 1, 1),
+            latest_in=dt(2016, 1, 1, 23, 59, 59),
+            latest_out=dt(2016, 1, 1, 23, 59, 59),
+            min_between_flights=delta(hours=1),
+            max_between_flights=delta(hours=5),
+        )
+
+        self.assertTrue(core.are_flights_compatible(flights, constraint))
+
+    def test_10(self):
+        """
+        are_flights_compatible: negative single flight - arrives too late
+
+        """
+        flight = make_flight()
+
+        constraint = DateConstraint(
+            earliest_out=dt(2016, 1, 1),
+            latest_out=dt(2016, 1, 1, 23, 59, 59),
+            latest_in=flight.date1 - delta(hours=1),  # Failing constraint
+            min_between_flights=delta(hours=1),
+            max_between_flights=delta(hours=5),
+        )
+
+        self.assertFalse(core.are_flights_compatible([flight], constraint))
+
+    def test_11(self):
+        """
+        are_flights_compatible: negative single flight - departs too late
+
+        """
+        flight = make_flight()
+
+        constraint = DateConstraint(
+            earliest_out=dt(2016, 1, 1),
+            latest_out=flight.date0 - delta(hours=1),  # Failing condition
+            latest_in=dt(2016, 1, 1, 23, 59, 59),
+            min_between_flights=delta(hours=1),
+            max_between_flights=delta(hours=5),
+        )
+
+        self.assertFalse(core.are_flights_compatible([flight], constraint))
+
+    def test_12(self):
+        """
+        are_flights_compatible: negative single flight - departs too early
+
+        """
+        flight = make_flight()
+
+        constraint = DateConstraint(
+            earliest_out=flight.date0 + delta(hours=1),
+            latest_out=dt(2016, 1, 1, 23, 59, 59),
+            latest_in=dt(2016, 1, 1, 23, 59, 59),
+            min_between_flights=delta(hours=1),
+            max_between_flights=delta(hours=5),
+        )
+
+        self.assertFalse(core.are_flights_compatible([flight], constraint))
+
+    def test_13(self):
+        """
+        are_flights_compatible: positive multiple flights
+
+        """
+        f1 = make_flight()
+        f2 = make_flight(orig=f1.dest, dest='C', date0=f1.date1 + delta(hours=1), date1=f1.date1 + delta(hours=3))
+
+        constraint = DateConstraint(
+            earliest_out=dt(2016, 1, 1),
+            latest_out=dt(2016, 1, 1, 23, 59, 59),
+            latest_in=dt(2016, 1, 1, 23, 59, 59),
+            min_between_flights=delta(hours=1),
+            max_between_flights=delta(hours=5),
+        )
+
+        self.assertTrue(core.are_flights_compatible([f1, f2], constraint))
+
+    def test_14(self):
+        """
+        Negative are_flights_compatible: there is not enough time between flights
+
+        """
+        f1 = make_flight()
+        f2 = make_flight(orig=f1.dest, dest='C', date0=f1.date1, date1=f1.date1 + delta(hours=3))
+
+        constraint = DateConstraint(
+            earliest_out=dt(2016, 1, 1),
+            latest_out=dt(2016, 1, 1, 23, 59, 59),
+            latest_in=dt(2016, 1, 1, 23, 59, 59),
+            min_between_flights=delta(hours=1),
+            max_between_flights=delta(hours=5),
+        )
+
+        self.assertFalse(core.are_flights_compatible([f1, f2], constraint))
+
+    def test_15(self):
+        """
+        Negative are_flights_compatible: there is too much time between flights
+
+        """
+        f1 = make_flight()
+        f2 = make_flight(orig=f1.dest, dest='C', date0=f1.date1 + delta(hours=10), date1=f1.date1 + delta(hours=13))
+
+        constraint = DateConstraint(
+            earliest_out=dt(2016, 1, 1),
+            latest_out=dt(2016, 1, 1, 23, 59, 59),
+            latest_in=dt(2016, 1, 1, 23, 59, 59),
+            min_between_flights=delta(hours=1),
+            max_between_flights=delta(hours=5),
+        )
+
+        self.assertFalse(core.are_flights_compatible([f1, f2], constraint))
