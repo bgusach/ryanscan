@@ -11,6 +11,7 @@ from math import ceil
 import json
 from pprint import pprint
 import requests as r
+import decimal
 
 from .tools import group_by
 
@@ -24,6 +25,9 @@ DateConstraint = namedtuple(
     'DateConstraint',
     ['earliest_out', 'latest_in', 'latest_out', 'min_between_flights', 'max_between_flights']
 )
+
+
+float2decimal = decimal.Context(prec=2, rounding=decimal.ROUND_HALF_DOWN).create_decimal_from_float
 
 
 def make_solution(flights):
@@ -46,8 +50,16 @@ def get_airport_connections():
 
 
 def get_airports_raw_data():
-    with open('test_data/common.json') as f:
-        return json.load(f)
+    return get_json('https://api.ryanair.com/aggregate/3/common?embedded=airports&market=en-ie')
+
+
+def get_json(path, **kwargs):
+    print('Requesting: %s' % path)
+    data = r.get(path, **kwargs).json()
+
+    pprint(data, indent=2)
+
+    return data
 
 
 def get_airport_names_from_raw_data(data):
@@ -132,21 +144,22 @@ std_min_between_flights = timedelta(hours=1)
 std_max_between_flights = timedelta(hours=5)
 
 
-def get_prices(
+def get_solutions(
     paths,
+
+    # TODO [bgusach 01.11.2016]: just pass a constraint named tuple
     dates_to,
     dates_back=None,
     min_between_flights=std_min_between_flights,
     max_between_flights=std_max_between_flights,
 ):
+    # TODO [bgusach 01.11.2016]: inject these functions
     needed_requests = calculate_needed_requests(paths, dates_to, dates_back)
 
     edge2flights = group_by(
         lambda x: (x.orig, x.dest),
         (flight for req in needed_requests for flight in execute_request(req)),
     )
-
-    pprint(edge2flights, indent=2)
 
     earliest_out = datetime.combine(dates_to.start, time(0, 0, 0))
     latest_in = datetime.combine(dates_to.end, time(23, 59, 59))
@@ -155,6 +168,8 @@ def get_prices(
         earliest_out=earliest_out,
         latest_out=latest_in,
         latest_in=latest_in,
+        min_between_flights=min_between_flights,
+        max_between_flights=max_between_flights,
     )
 
     for path in paths:
@@ -195,6 +210,9 @@ def are_flights_compatible(flights, date_constraint):
 
 
 def get_path_solutions(path, edge2flights, date_constraint, are_flights_compatible=are_flights_compatible):
+    if not all(edge in edge2flights for edge in path):
+        return []
+
     all_posible_solutions = itertools.product(*[edge2flights[edge] for edge in path])
 
     return [
@@ -234,7 +252,7 @@ def execute_request(request):
     }
 
     # FIXME [bgusach 30.10.2016]: add support for more countries/currencies
-    res = r.get('https://desktopapps.ryanair.com/en-ie/availability', params=query).json()
+    res = get_json('https://desktopapps.ryanair.com/en-ie/availability', params=query)
 
     return [
         Flight(
@@ -242,13 +260,19 @@ def execute_request(request):
             dest=trip['destination'],
             date_out=parse_full_date(flight['time'][0]),
             date_in=parse_full_date(flight['time'][1]),
-            price=flight['regularFare']['fares'][0]['amount'],
+            price=get_cheapest_fare_from_flight(flight),
             flight_number=flight['flightNumber'],
         )
         for trip in res['trips']
         for date in trip['dates']
         for flight in date['flights']
+        if flight['faresLeft']
     ]
+
+
+def get_cheapest_fare_from_flight(flight):
+    fare = flight.get('regularFare') or flight.get('leisureFare') or flight['businessFare']
+    return float2decimal(fare['fares'][0]['amount'])
 
 
 def parse_full_date(date_str):
@@ -258,9 +282,48 @@ def parse_full_date(date_str):
 RAR_DATE_FORMAT = '%Y-%m-%d'
 
 
-def scan(origs, dests, dates_to, dates_back, get_network=get_airport_connections, find_paths=find_paths):
+def get_airports():
+    return get_json('https://desktopapps.ryanair.com/en-ie/res/stations')
+
+
+def scan(
+    origs,
+    dests,
+    earliest_to,
+    latest_to,
+    listener,
+    earliest_back=None,
+    latest_back=None,
+    max_flights=2,
+    min_between_flights=std_min_between_flights,
+    max_between_flights=std_max_between_flights,
+    get_network=get_airport_connections,
+    find_paths=find_paths
+):
+    """
+    :param dests:
+    :param datetime.date earliest_to: Earliest date to fly to destination
+    :param datetime.date latest_to: Latest date to fly to destination
+    :param datetime.date earliest_back: Earliest date to return
+    :param datetime.date latest_back: Latest date to return
+    :param int max_flights: Maximum number of flights allowed to reach a destination
+    :param timedelta min_between_flights: Minimum time between flights
+    :param timedelta max_between_flights: Maximum time between flights
+
+    :return: list of Solution sorted by ascendant price
+
+    """
+    listener.getting_network()
     network = get_network()
 
-    paths = find_paths(['BRE'], ['ALC'], network, max_flights=1)
-    prices = get_prices(paths, DateInterval(datetime(2016, 11, 10), datetime(2016, 11, 15)))
+    listener.finding_paths()
+    paths = list(find_paths(origs, dests, network, max_flights))
+    listener.paths_found(paths)
+
+    dates_to = DateInterval(earliest_to, latest_to)
+
+    listener.finding_valid_solutions()
+    solutions = get_solutions(paths, dates_to)
+
+    return sorted(solutions, key=lambda s: s.price)
 
