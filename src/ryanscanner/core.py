@@ -8,12 +8,11 @@ from datetime import datetime
 from datetime import time
 from datetime import timedelta
 from math import ceil
-import json
-from pprint import pprint
 import requests as r
 import decimal
 
 from .tools import group_by
+from .tools import SoftDispatcher
 
 
 Flight = namedtuple('Flight', ['orig', 'dest', 'date_out', 'date_in', 'price', 'flight_number'])
@@ -57,7 +56,7 @@ def get_json(path, **kwargs):
     print('Requesting: %s' % path)
     data = r.get(path, **kwargs).json()
 
-    pprint(data, indent=2)
+    # pprint(data, indent=2)
 
     return data
 
@@ -241,7 +240,8 @@ def execute_request(request):
     query = {
         'ADT': 1,
         'CHD': 0,
-        'DateOut': request.date_to.strftime(RAR_DATE_FORMAT),
+        'DateOut': request.date_to.isoformat(),
+        # 'DateOut': request.date_to.strftime(ISO_DATE_FORMAT),
         # 'DateIn': date.strftime(RAR_DATE_FORMAT),
         'Destination': request.dest,
         'FlexDaysOut': 6,
@@ -279,9 +279,6 @@ def parse_full_date(date_str):
     return datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S.%f')
 
 
-RAR_DATE_FORMAT = '%Y-%m-%d'
-
-
 def get_airports():
     return get_json('https://desktopapps.ryanair.com/en-ie/res/stations')
 
@@ -291,7 +288,7 @@ def scan(
     dests,
     earliest_to,
     latest_to,
-    listener,
+    listener=None,
     earliest_back=None,
     latest_back=None,
     max_flights=2,
@@ -310,9 +307,10 @@ def scan(
     :param timedelta min_between_flights: Minimum time between flights
     :param timedelta max_between_flights: Maximum time between flights
 
-    :return: list of Solution sorted by ascendant price
+    :return: list of Solution sorted by ascendant date
 
     """
+    listener = SoftDispatcher(listener)
     listener.getting_network()
     network = get_network()
 
@@ -325,5 +323,5 @@ def scan(
     listener.finding_valid_solutions()
     solutions = get_solutions(paths, dates_to)
 
-    return sorted(solutions, key=lambda s: s.price)
+    return sorted(solutions, key=lambda s: s.date_out)
 
