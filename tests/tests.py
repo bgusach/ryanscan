@@ -16,169 +16,73 @@ from ryanscanner.core import Edge as E
 
 class Tests(TestCase):
 
-    data = {
+    stations_data = {
         "airports": [
             {
                 "routes": [
-                    "region:SICILY",
-                    "airport:STN",
-                    "airport:CAG",
-                    "country:it",
-                    "country:gb",
-                    "airport:TPS",
-                    "city:TRAPANI",
-                    "region:SARDINIA",
-                    "city:CAGLIARI",
-                    "city:LONDON",
-                    "region:GREATER_LONDON"
+                    "region:xxxx",
+                    "airport:AAA",
+                    "airport:BBB",
+                    "country:xxxx",
+                    "country:xxxx",
+                    "airport:DDD",
+                    "city:xxxx",
+                    "region:xxxx",
+                    "city:xxxx",
+                    "city:xxxx",
+                    "region:xxxx"
                 ],
-                "iataCode": "PMF",
-                "categories": [
-                    "FAM",
-                    "SPR",
-                    "FST",
-                    "CTY",
-                    "CUL",
-                    "OUT"
-                ],
-                "name": "Parma",
-                "cityCode": "PARMA",
-                "countryCode": "it",
-                "seoName": "parma",
-                "regionCode": "EMILIA-ROMAGNA",
-                "coordinates": {
-                    "latitude": 44.8245,
-                    "longitude": 10.2964
-                },
-                "priority": 115,
-                "seasonalRoutes": [],
-                "currencyCode": "EUR",
-                "base": False
+                "iataCode": "CCC",
+                "name": "Atlantis",
             },
             {
                 "routes": [
-                    "airport:VLC",
-                    "airport:LPA",
-                    "city:TENERIFE",
-                    "region:CANARY_ISLES",
-                    "country:gr",
-                    "airport:WMI",
-                    "airport:BGY",
-                    "airport:FCO",
-                    "airport:MAD",
-                    "city:GRAN_CANARIA",
-                    "airport:PMI",
-                    "airport:AGP",
-                    "airport:SOF",
-                    "city:MILAN",
-                    "city:WARSAW",
-                    "city:BERLIN",
-                    "region:COSTA_DE_SOL",
-                    "city:BARCELONA",
-                    "city:SOFIA",
-                    "country:dk",
-                    "country:pt",
-                    "city:ROME",
-                    "country:lv",
-                    "region:COSTA_BRAVA",
-                    "country:pl",
-                    "city:VALENCIA",
-                    "airport:DUB",
-                    "airport:CFU",
-                    "country:de",
-                    "airport:STN",
-                    "airport:OPO",
-                    "city:CORFU",
-                    "city:PORTO",
-                    "country:es",
-                    "city:BENIDORM",
-                    "airport:SXF",
-                    "airport:RIX",
-                    "airport:MLA",
-                    "country:mt",
-                    "city:PALMA",
-                    "airport:CPH",
-                    "city:MALAGA",
-                    "country:it",
-                    "region:IONIAN_ISLANDS_GREEK_ISLANDS",
-                    "airport:ALC",
-                    "country:ie",
-                    "airport:FAO",
-                    "city:ALGARVE",
-                    "city:LONDON",
-                    "airport:BCN",
-                    "country:gb",
-                    "airport:TFS",
-                    "city:DUBLIN",
-                    "city:MADRID",
-                    "city:MALTA",
-                    "airport:CIA",
-                    "country:bg",
-                    "city:COPENHAGEN",
-                    "city:RIGA",
-                    "region:COSTA_BLANCA",
-                    "region:GREATER_LONDON"
+                    "airport:FFF",
+                    "airport:GGG",
+                    "city:xxxx",
+                    "region:xxxx",
+                    "country:xxxx",
+                    "airport:HHH",
+                    "airport:III",
+                    "airport:JJJ",
+                    "airport:KKK",
+                    "city:xxxx",
+                    "airport:LLL",
+                    "airport:MMM",
+                    "airport:NNN",
+                    "airport:OOO",
+                    "airport:PPP",
+                    "airport:AAA",
                 ],
-                "iataCode": "CGN",
-                "categories": [
-                    "FAM",
-                    "SPR",
-                    "FST",
-                    "CTY",
-                    "CUL",
-                    "OUT",
-                    "XMS"
-                ],
-                "name": "Cologne",
-                "cityCode": "COLOGNE",
-                "countryCode": "de",
-                "seoName": "cologne-bonn",
-                "regionCode": "NORTH_RHINE-WESTPHALIA",
-                "coordinates": {
-                    "latitude": 50.8659,
-                    "longitude": 7.14274
-                },
-                "priority": 80,
-                "seasonalRoutes": [],
-                "currencyCode": "EUR",
-                "base": True
+                "iataCode": "EEE",
+                "name": "Villaconejos",
             }
         ]
     }
 
     def test_1(self):
-        result = core.get_connections_from_stations_data(self.data)
+        result = core.get_connections_from_stations_data(self.stations_data)
 
         expected = {
-            'CGN': {
-                'VLC',
-                'LPA',
-                'WMI',
-                'BGY',
-                'FCO',
-                'MAD',
-                'PMI',
-                'AGP',
-                'SOF',
-                'DUB',
-                'CFU',
-                'STN',
-                'OPO',
-                'SXF',
-                'RIX',
-                'MLA',
-                'CPH',
-                'ALC',
-                'FAO',
-                'BCN',
-                'TFS',
-                'CIA',
+            'EEE': {
+                'AAA',
+                'FFF',
+                'GGG',
+                'HHH',
+                'III',
+                'JJJ',
+                'KKK',
+                'LLL',
+                'MMM',
+                'NNN',
+                'OOO',
+                'PPP',
             },
 
-            'PMF': {
-                'STN',
-                'CAG',
-                'TPS',
+            'CCC': {
+                'AAA',
+                'BBB',
+                'DDD',
             }
 
         }
@@ -186,10 +90,10 @@ class Tests(TestCase):
         self.assertEqual(expected, result)
 
     def test_2(self):
-        result = core.get_airport_names_from_raw_data(self.data)
+        result = core.get_airport_names_from_raw_data(self.stations_data)
         expected = {
-            'PMF': 'Parma',
-            'CGN': 'Cologne',
+            'CCC': 'Atlantis',
+            'EEE': 'Villaconejos',
         }
 
         self.assertEqual(result, expected)
