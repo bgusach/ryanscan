@@ -6,12 +6,12 @@ from datetime import datetime as dt
 from datetime import timedelta as delta
 from unittest import TestCase
 
-from ryanscanner import core
-from ryanscanner.core import DateConstraint
-from ryanscanner.core import Solution
-from ryanscanner.core import BackendRequest
-from ryanscanner.core import Flight as F
-from ryanscanner.core import Edge as E
+from ryanscan import core
+from ryanscan.core import DateConstraint
+from ryanscan.core import Solution
+from ryanscan.core import BackendRequest
+from ryanscan.core import Flight as F
+from ryanscan.core import Edge as E
 
 
 class Tests(TestCase):

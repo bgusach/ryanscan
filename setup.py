@@ -11,13 +11,13 @@ from setuptools import setup
 
 
 setup(
-    name='ryanscanner',
+    name='ryanscan',
     version='0.1.0',
     license='MIT',
-    description='Tool to automate the search of Ryanair\'s flights',
+    description='Tool to ease/automate the search of Ryanair\'s flights',
     author='Bor González-Usach',
     author_email='bgusach@gmail.com',
-    url='https://github.com/bgusach/ryanscanner',
+    url='https://github.com/bgusach/ryanscan',
     packages=find_packages(b'src'),
     package_dir={'': b'src'},
     py_modules=[splitext(basename(path))[0] for path in glob('src/*.py')],
@@ -47,7 +47,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'ryanscanner=ryanscanner.__main__:main',
+            'ryanscan=ryanscan.__main__:main',
         ]
     },
 )

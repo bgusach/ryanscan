@@ -2,8 +2,13 @@
 
 from __future__ import unicode_literals, print_function, absolute_import, division
 
-
+import sys
 from datetime import datetime
+import decimal
+
+
+def log_info(msg):
+    print('ryanscan: %s' % msg, file=sys.stderr)
 
 
 def group_by(key, iterable):
@@ -36,17 +41,15 @@ def parse_isodate(string):
     return datetime.strptime(string, '%Y-%m-%d').date()
 
 
-class SoftDispatcher(object):
+float2decimal = decimal.Context(prec=2, rounding=decimal.ROUND_HALF_DOWN).create_decimal_from_float
+
+
+def set_assoc(s, val):
     """
-    Wraps an object and delegates to it attribute access if attribute exists, otherwise returns a dummy function
+    Returns a new set containing all elements of `s` plus the element `val`
 
     """
+    res = s.copy()
+    res.add(val)
 
-    def __init__(self, obj):
-        self._obj = obj
-
-    def dummy(*args, **kwargs):
-        return None
-
-    def __getattr__(self, item):
-        return getattr(self._obj, item, self.dummy)
+    return res

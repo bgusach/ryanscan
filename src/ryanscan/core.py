@@ -3,16 +3,19 @@
 from __future__ import unicode_literals, division, absolute_import, print_function
 
 import itertools
+import traceback
 from collections import namedtuple
 from datetime import datetime
 from datetime import time
 from datetime import timedelta
 from math import ceil
-import requests as r
-import decimal
 
+import requests
+
+from .tools import set_assoc
 from .tools import group_by
-from .tools import SoftDispatcher
+from .tools import float2decimal
+from .tools import log_info
 
 
 Flight = namedtuple('Flight', ['orig', 'dest', 'date_out', 'date_in', 'price', 'flight_number'])
@@ -26,7 +29,11 @@ DateConstraint = namedtuple(
 )
 
 
-float2decimal = decimal.Context(prec=2, rounding=decimal.ROUND_HALF_DOWN).create_decimal_from_float
+class AppError(Exception):
+
+    def __init__(self, msg, details):
+        self.msg = msg
+        self.details = details
 
 
 def make_solution(flights):
@@ -45,24 +52,28 @@ def make_solution(flights):
 
 
 def get_airport_connections():
+    log_info('Getting network')
     return get_connections_from_stations_data(get_airports_raw_data())
 
 
 def get_airports_raw_data():
+    log_info('Getting airports information')
     return get_json('https://api.ryanair.com/aggregate/3/common?embedded=airports&market=en-ie')
 
 
 def get_json(path, **kwargs):
-    print('Requesting: %s' % path)
-    data = r.get(path, **kwargs).json()
+    err_msg = 'Impossible to communicate with Ryanair backend'
 
-    # pprint(data, indent=2)
+    try:
+        r = requests.get(path, **kwargs)
 
-    return data
+    except Exception:
+        raise AppError(err_msg, traceback.format_exc())
 
+    if not r.ok:
+        raise AppError(err_msg, 'Backend responded with status code %s' % r.status_code)
 
-def get_airport_names_from_raw_data(data):
-    return {a['iataCode']: a['name'] for a in data['airports']}
+    return r.json()
 
 
 def get_connections_from_stations_data(data):
@@ -74,17 +85,6 @@ def get_connections_from_stations_data(data):
         }
         for airport in data['airports']
     }
-
-
-def set_assoc(s, val):
-    """
-    Returns a new set containing all elements of `s` plus the element `val`
-
-    """
-    res = s.copy()
-    res.add(val)
-
-    return res
 
 
 def find_paths(origs, targets, network, max_flights=2):
@@ -152,6 +152,7 @@ def get_solutions(
     min_between_flights=std_min_between_flights,
     max_between_flights=std_max_between_flights,
 ):
+    log_info('Finding valid solutions')
     # TODO [bgusach 01.11.2016]: inject these functions
     needed_requests = calculate_needed_requests(paths, dates_to, dates_back)
 
@@ -241,7 +242,6 @@ def execute_request(request):
         'ADT': 1,
         'CHD': 0,
         'DateOut': request.date_to.isoformat(),
-        # 'DateOut': request.date_to.strftime(ISO_DATE_FORMAT),
         # 'DateIn': date.strftime(RAR_DATE_FORMAT),
         'Destination': request.dest,
         'FlexDaysOut': 6,
@@ -280,6 +280,7 @@ def parse_full_date(date_str):
 
 
 def get_airports():
+    log_info('Finding airports')
     return get_json('https://desktopapps.ryanair.com/en-ie/res/stations')
 
 
@@ -288,7 +289,6 @@ def scan(
     dests,
     earliest_to,
     latest_to,
-    listener=None,
     earliest_back=None,
     latest_back=None,
     max_flights=2,
@@ -307,20 +307,14 @@ def scan(
     :param timedelta min_between_flights: Minimum time between flights
     :param timedelta max_between_flights: Maximum time between flights
 
-    :return: list of Solution sorted by ascendant date
-
     """
-    listener = SoftDispatcher(listener)
-    listener.getting_network()
     network = get_network()
 
-    listener.finding_paths()
     paths = list(find_paths(origs, dests, network, max_flights))
-    listener.paths_found(paths)
+    log_info('%s path(s) found' % len(paths))
 
     dates_to = DateInterval(earliest_to, latest_to)
 
-    listener.finding_valid_solutions()
     solutions = get_solutions(paths, dates_to)
 
     return sorted(solutions, key=lambda s: s.date_out)

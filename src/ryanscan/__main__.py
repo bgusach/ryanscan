@@ -2,9 +2,23 @@
 
 """
 Usage:
-    ryanscanner
-    ryanscanner airports
-    ryanscanner find <origins> <destinations> <earliest-to> <latest-to> [--max-flights=<max>] [--json]
+    ryanscan find-airports [<terms>...]
+    ryanscan find-flights <origins> <destinations> <earliest-to> <latest-to> [--max-flights=<max>] [--json]
+
+Commands:
+    find-airports               Output the list of all Ryanair airports with their IATA codes. Optionally accepts
+                                any number of names to reduce the matches.
+
+                                Example:
+                                    ryanscan find-airports valencia
+
+    find-flights                Given a list of origin airports (IATA codes separated by commas without spaces) and
+                                a list of destination airports (same format as origins), and earliest and latest
+                                dates for departure (format: YYYY-MM-DD), this command outputs a list of all found
+                                solutions for the requested route.
+
+                                Example:
+                                    ryanscan find-flights BRE,HAM MAD,VLC 2016-10-10 2016-10-29
 
 Options:
     --json                      Output results as JSON string to stdout
@@ -14,14 +28,15 @@ Options:
 
 from __future__ import unicode_literals, absolute_import, print_function
 
-from docopt import docopt
-import json
 import sys
+import os
+import json
+import io
+from docopt import docopt
 from datetime import datetime
 from decimal import Decimal
 
 from . import core
-from . import cli_listener
 from . import tools
 
 try:
@@ -31,13 +46,13 @@ except NameError:
 
 
 def find(origins, destinations, earliest_to, latest_to, max_flights, as_json=False):
+
     solutions = core.scan(
         origs=origins,
         dests=destinations,
         earliest_to=earliest_to,
         latest_to=latest_to,
         max_flights=max_flights,
-        listener=cli_listener if not as_json else None,
     )
 
     if as_json:
@@ -75,9 +90,49 @@ def make_jsonizable(obj):
 
 
 def main(args=None):
+    try:
+        _main(args)
+    except core.AppError as exc:
+        tools.log_info(exc.msg)
+
+        log_path = os.path.join(os.path.expanduser('$'), 'ryanscan.error')
+
+        with io.open(log_path, 'w', encoding='utf-8') as f:
+            f.write(exc.msg)
+            f.write(exc.details)
+
+        return -1
+
+
+def find_airports(terms):
+    terms = [t.lower() for t in terms]
+
+    def predicate(x):
+        if not terms:
+            return True
+
+        x = x.lower()
+
+        return any(t in x for t in terms)
+
+    airports = [
+        ('{name} ({country})'.format(**data), iata)
+        for iata, data in core.get_airports().items()
+        if any(predicate(x) for x in data.values())
+    ]
+
+    longest_key = max(len(airport[0]) for airport in airports)
+
+    for airport in sorted(airports, key=lambda x: x[0]):
+        print('%s: %s' % (airport[0].ljust(longest_key), airport[1]))
+
+    return
+
+
+def _main(args):
     args = docopt(__doc__, args)
 
-    if args['find']:
+    if args['find-flights']:
         find(
             origins=args['<origins>'].upper().split(','),
             destinations=args['<destinations>'].upper().split(','),
@@ -88,24 +143,8 @@ def main(args=None):
         )
         return
 
-    if args['airports']:
-        airports = [('{name} ({country})'.format(**data), iata) for iata, data in core.get_airports().items()]
-
-        longest_key = max(len(airport[0]) for airport in airports)
-
-        for airport in sorted(airports, key=lambda x: x[0]):
-            print('%s: %s' % (airport[0].ljust(longest_key), airport[1]))
-
-        return
-
-    interactive()
-
-
-def interactive():
-    origins = input('IATA Codes of origin airport(s) separated by commas: ').replace(' ', '').split(',')
-    print(origins)
-    dests = input('IATA Codes of destination airport(s) separated by commas: ').replace(' ', '').split(',')
-    print(dests)
+    if args['find-airports']:
+        find_airports(terms=args['<terms>'])
 
 
 def render_single_flight_solution(sol):
@@ -113,14 +152,14 @@ def render_single_flight_solution(sol):
 
 
 def format_flight(flight):
-    return '{f.orig} > {f.dest} | {f.price}€ | {f.flight_number} | {date}'.format(
+    return '{f.orig} > {f.dest} | {date} | {f.flight_number} | {f.price:.2f}€'.format(
         f=flight,
         date=format_date_pair(flight.date_out, flight.date_in),
     )
 
 
 def render_multiflight_solution(sol):
-    print('{s.orig} > {s.dest} | {s.price}€ | {dates}'.format(s=sol, dates=format_date_pair(sol.date_out, sol.date_in)))
+    print('{s.orig} > {s.dest} | {dates} | {s.price:.2f}€'.format(s=sol, dates=format_date_pair(sol.date_out, sol.date_in)))
 
     for f in sol.flights:
         print('  - %s' % format_flight(f))
@@ -140,4 +179,4 @@ def format_date_pair(date_out, date_in):
     )
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
