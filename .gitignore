@@ -4,3 +4,4 @@ src/ryanscan.egg-info
 dist
 build
 ryanscan/gui
+*.pyc
