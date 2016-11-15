@@ -6,19 +6,19 @@ Usage:
     ryanscan find-flights <origins> <destinations> <earliest-to> <latest-to> [--max-flights=<max>] [--json]
 
 Commands:
-    find-airports               Output the list of all Ryanair airports with their IATA codes. Optionally accepts
-                                any number of names to reduce the matches.
+    find-airports       Output the list of all Ryanair airports with their IATA codes. Optionally accepts
+                        any number of names to reduce the matches.
 
-                                Example:
-                                    ryanscan find-airports valencia
+                        Example:
+                            ryanscan find-airports valencia
 
-    find-flights                Given a list of origin airports (IATA codes separated by commas without spaces) and
-                                a list of destination airports (same format as origins), and earliest and latest
-                                dates for departure (format: YYYY-MM-DD), this command outputs a list of all found
-                                solutions for the requested route.
+    find-flights        Given a list of origin airports (IATA codes separated by commas without spaces) and
+                        a list of destination airports (same format as origins), and earliest and latest
+                        dates for departure (format: YYYY-MM-DD), this command outputs a list of all found
+                        solutions for the requested route.
 
-                                Example:
-                                    ryanscan find-flights BRE,HAM MAD,VLC 2016-10-10 2016-10-29
+                        Example:
+                            ryanscan find-flights BRE,HAM MAD,VLC 2016-10-10 2016-10-29
 
 Options:
     --json                      Output results as JSON string to stdout
@@ -32,6 +32,8 @@ import sys
 import os
 import json
 import io
+import traceback
+import tempfile
 from docopt import docopt
 from datetime import datetime
 from decimal import Decimal
@@ -92,16 +94,37 @@ def make_jsonizable(obj):
 def main(args=None):
     try:
         _main(args)
+        return 0
+
     except core.AppError as exc:
-        tools.log_info(exc.msg)
+        tools.log_info('Error - %s' % exc.msg)
+        write_error_log(exc.msg, exc.details)
 
-        log_path = os.path.join(os.path.expanduser('$'), 'ryanscan.error')
+    except Exception:
+        write_error_log(traceback.format_exc())
 
-        with io.open(log_path, 'w', encoding='utf-8') as f:
-            f.write(exc.msg)
-            f.write(exc.details)
+        tools.log_info(
+            'Unexpected error. Please consider checking the log file '
+            ' and open an issue in https://github.com/bgusach/ryanscan if necessary'
+        )
 
         return -1
+
+
+def write_error_log(*msgs):
+
+    log_path = os.path.join(tempfile.gettempdir(), 'ryanscan.error')
+
+    with io.open(log_path, 'w', encoding='utf-8') as f:
+        for msg in msgs:
+
+            # Compatibility python 2.7 - 3
+            if isinstance(msg, bytes):
+                msg = msg.decode()
+
+            print(msg, file=f)
+
+    tools.log_info('Error report logged in: %s' % log_path)
 
 
 def find_airports(terms):
@@ -120,6 +143,10 @@ def find_airports(terms):
         for iata, data in core.get_airports().items()
         if any(predicate(x) for x in data.values())
     ]
+
+    if not airports:
+        print('No matches found')
+        return
 
     longest_key = max(len(airport[0]) for airport in airports)
 

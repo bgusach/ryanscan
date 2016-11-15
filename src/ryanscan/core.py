@@ -9,7 +9,6 @@ from datetime import datetime
 from datetime import time
 from datetime import timedelta
 from math import ceil
-
 import requests
 
 from .tools import set_assoc

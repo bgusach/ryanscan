@@ -1,6 +1,6 @@
 # coding: utf-8
 
-from __future__ import unicode_literals, absolute_import, print_function
+from __future__ import absolute_import, print_function
 
 from glob import glob
 from os.path import basename
@@ -18,8 +18,8 @@ setup(
     author='Bor González-Usach',
     author_email='bgusach@gmail.com',
     url='https://github.com/bgusach/ryanscan',
-    packages=find_packages(b'src'),
-    package_dir={'': b'src'},
+    packages=find_packages('src'),
+    package_dir={'': 'src'},
     py_modules=[splitext(basename(path))[0] for path in glob('src/*.py')],
     include_package_data=True,
     zip_safe=False,
