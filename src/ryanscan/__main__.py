@@ -96,7 +96,7 @@ def main(args=None):
         _main(args)
         return 0
 
-    except core.AppError as exc:
+    except core.BackendError as exc:
         tools.log_info('Error - %s' % exc.msg)
         write_error_log(exc.msg, exc.details)
 

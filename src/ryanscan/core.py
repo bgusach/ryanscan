@@ -9,12 +9,16 @@ from datetime import datetime
 from datetime import time
 from datetime import timedelta
 from math import ceil
-import requests
 
 from .tools import set_assoc
 from .tools import group_by
 from .tools import float2decimal
 from .tools import log_info
+from . import backend
+
+# NOTE [bgo]: API Relevant imports, consider adding them to __all__
+from .backend import BackendError
+from .backend import get_airports
 
 
 Flight = namedtuple('Flight', ['orig', 'dest', 'date_out', 'date_in', 'price', 'flight_number'])
@@ -27,12 +31,6 @@ DateConstraint = namedtuple(
     ['earliest_out', 'latest_in', 'latest_out', 'min_between_flights', 'max_between_flights']
 )
 
-
-class AppError(Exception):
-
-    def __init__(self, msg, details):
-        self.msg = msg
-        self.details = details
 
 
 def make_solution(flights):
@@ -54,25 +52,6 @@ def get_airport_connections():
     log_info('Getting network')
     return get_connections_from_stations_data(get_airports_raw_data())
 
-
-def get_airports_raw_data():
-    log_info('Getting airports information')
-    return get_json('https://api.ryanair.com/aggregate/3/common?embedded=airports&market=en-ie')
-
-
-def get_json(path, **kwargs):
-    err_msg = 'Impossible to communicate with Ryanair backend'
-
-    try:
-        r = requests.get(path, **kwargs)
-
-    except Exception:
-        raise AppError(err_msg, traceback.format_exc())
-
-    if not r.ok:
-        raise AppError(err_msg, 'Backend responded with status code %s' % r.status_code)
-
-    return r.json()
 
 
 def get_connections_from_stations_data(data):
@@ -157,7 +136,7 @@ def get_solutions(
 
     edge2flights = group_by(
         lambda x: (x.orig, x.dest),
-        (flight for req in needed_requests for flight in execute_request(req)),
+        (flight for req in needed_requests for flight in backend.execute_request(req)),
     )
 
     earliest_out = datetime.combine(dates_to.start, time(0, 0, 0))
@@ -236,38 +215,6 @@ def calculate_needed_requests(paths, dates_to, dates_back=None):
     }
 
 
-def execute_request(request):
-    query = {
-        'ADT': 1,
-        'CHD': 0,
-        'DateOut': request.date_to.isoformat(),
-        # 'DateIn': date.strftime(RAR_DATE_FORMAT),
-        'Destination': request.dest,
-        'FlexDaysOut': 6,
-        'INF': 0,
-        'Origin': request.orig,
-        'RoundTrip': 'false',
-        'TEEN': 0,
-    }
-
-    # FIXME [bgusach 30.10.2016]: add support for more countries/currencies
-    res = get_json('https://desktopapps.ryanair.com/en-ie/availability', params=query)
-
-    return [
-        Flight(
-            orig=trip['origin'],
-            dest=trip['destination'],
-            date_out=parse_full_date(flight['time'][0]),
-            date_in=parse_full_date(flight['time'][1]),
-            price=get_cheapest_fare_from_flight(flight),
-            flight_number=flight['flightNumber'],
-        )
-        for trip in res['trips']
-        for date in trip['dates']
-        for flight in date['flights']
-        if flight['faresLeft']
-    ]
-
 
 def get_cheapest_fare_from_flight(flight):
     fare = flight.get('regularFare') or flight.get('leisureFare') or flight['businessFare']
@@ -276,11 +223,6 @@ def get_cheapest_fare_from_flight(flight):
 
 def parse_full_date(date_str):
     return datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S.%f')
-
-
-def get_airports():
-    log_info('Finding airports')
-    return get_json('https://desktopapps.ryanair.com/en-ie/res/stations')
 
 
 def scan(

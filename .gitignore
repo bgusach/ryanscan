@@ -5,3 +5,5 @@ dist
 build
 ryanscan/gui
 *.pyc
+*.swp
+virtenv/
