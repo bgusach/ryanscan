@@ -6,13 +6,44 @@ What is this?
 A small tool to make easier the task of searching flights on Ryanair's website,
 especially with multiple origins, destinations or possible connecting flights.
 
+
 Why?
 ----
 Because it is annoying to do it by hand, and it is a fun small project :).
 
 
+Requirements
+------------
+Should work with Python 2.7 and any Python 3 version. However this has not been thoroughly
+tested. If you find and issue, do not hesitate to open an issue on github.
+
+You will need pip to install it. Virtualenv is recommended but not necessary.
+
+
+How to install
+--------------
+Since this is not in PyPI, you need to clone the repository::
+
+    git clone https://github.com/bgusach/ryanscan.git
+
+Optionally create a virtualenv and activate it. Activating it depends on your shell. If you
+are using bash the following lines should work::
+
+    virtualenv env
+    . env/bin/activate
+
+
+Finally install ``ryanscan``::
+
+    pip install .
+
+
+
 How does it work?
 -----------------
+**IMPORTANT**: By using this programme you agree to the `Terms of Use of the Ryanair website
+<https://www.ryanair.com/gb/en/corporate/terms-of-use>`_
+
 So far it only has a command line interface. First of all, you need to know the IATA
 codes of the airports you want to query. The easiest way is to use the ``find-airports``
 command like this::
@@ -42,7 +73,7 @@ to query what flights are available from Bremen to Valencia or Alicante within a
     BRE > ALC | Sun 2016-10-23 15:50 - 18:45 | FR 9057 | 250.00€
 
 
-Type ``ryanscan --help`` for more.
+Type ``ryanscan --help`` to see further options.
 
 
 TODO

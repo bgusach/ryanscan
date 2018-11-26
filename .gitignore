@@ -1,7 +1,7 @@
-.idea
 __pycache__/
-src/ryanscan.egg-info
-dist
-build
-ryanscan/gui
-*.pyc
+build/
+dist/
+env/
+.idea/
+src/ryanscan.egg-info/
+

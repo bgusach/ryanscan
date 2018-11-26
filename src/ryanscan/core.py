@@ -70,7 +70,14 @@ def get_json(path, **kwargs):
         raise AppError(err_msg, traceback.format_exc())
 
     if not r.ok:
-        raise AppError(err_msg, 'Backend responded with status code %s' % r.status_code)
+        msg = (
+            'Requested URL:%s\n'
+            'Params: %s\n'
+            'Backend responded with status %s\n'
+            'and contents: %s\n'
+        ) % (path, kwargs, r.status_code, r.text)
+
+        raise AppError(err_msg, msg)
 
     return r.json()
 
@@ -248,6 +255,7 @@ def execute_request(request):
         'Origin': request.orig,
         'RoundTrip': 'false',
         'TEEN': 0,
+        'ToUs': 'AGREED',
     }
 
     # FIXME [bgusach 30.10.2016]: add support for more countries/currencies
