@@ -145,6 +145,7 @@ def _find_path_for_origin(orig, targets, network, explored_path=None, visited_no
             ):
                 yield path
 
+
 std_min_between_flights = timedelta(hours=1)
 std_max_between_flights = timedelta(hours=5)
 

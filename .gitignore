@@ -1,7 +1,9 @@
-__pycache__/
-build/
-dist/
+src/ryanscan.egg-info
+dist
+build
+ryanscan/gui
+*.pyc
+*.swp
 env/
 .idea/
-src/ryanscan.egg-info/
 
