@@ -15,7 +15,7 @@ Because it is annoying to do it by hand, and it is a fun small project :).
 Requirements
 ------------
 Should work with Python 2.7 and any Python 3 version. However this has not been thoroughly
-tested. If you find and issue, do not hesitate to open an issue on github.
+tested. If you find any issue, do not hesitate to open an issue on github.
 
 You will need pip to install it. Virtualenv is recommended but not necessary.
 
