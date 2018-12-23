@@ -1,6 +1,10 @@
 # coding: utf-8
 
 """
+CLI for querying Ryanair's flights in a comfortable way.
+IMPORTANT: By using this programme you agree to the Terms of Use
+of the Ryanair Website: https://www.ryanair.com/gb/en/corporate/terms-of-use
+
 Usage:
     ryanscan find-airports [<terms>...]
     ryanscan find-flights <origins> <destinations> <earliest-to> <latest-to> [--max-flights=<max>] [--json]
@@ -26,7 +30,7 @@ Commands:
 
 Options:
     --json                      Output results as JSON string to stdout
-    -m --max-flights=<max>      Maximum flights to reach destination [default: 2]
+    -m --max-flights=<max>      Maximum flights to reach destination [default: 1]
 
 """
 
@@ -183,14 +187,14 @@ def render_single_flight_solution(sol):
 
 
 def format_flight(flight):
-    return '{f.orig} > {f.dest} | {date} | {f.flight_number} | {f.price:.2f}€'.format(
+    return '{f.orig} > {f.dest} | {date} | {f.flight_number:<8} | {f.price:>7.2f} EUR'.format(
         f=flight,
         date=format_date_pair(flight.date_out, flight.date_in),
     )
 
 
 def render_multiflight_solution(sol):
-    print('{s.orig} > {s.dest} | {dates} | {s.price:.2f}€'.format(s=sol, dates=format_date_pair(sol.date_out, sol.date_in)))
+    print('{s.orig} > {s.dest} | {dates} | {s.price:>7.2f} EUR'.format(s=sol, dates=format_date_pair(sol.date_out, sol.date_in)))
 
     for f in sol.flights:
         print('  - %s' % format_flight(f))
@@ -208,6 +212,7 @@ def format_date_pair(date_out, date_in):
         date_out.strftime(full_format),
         date_in.strftime(only_time if date_out.date() == date_in.date() else full_format),
     )
+
 
 if __name__ == '__main__':
     sys.exit(main())
